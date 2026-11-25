@@ -1,0 +1,862 @@
+diff --git a/app/config.xml b/app/config.xml
+index 2f10440..01b8967 100644
+--- a/app/config.xml
++++ b/app/config.xml
+@@ -11,5 +11,8 @@
+   <tizen:privilege name="http://tizen.org/privilege/application.info"/>
+   <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+   <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
++  <tizen:privilege name="http://tizen.org/privilege/internet"/>
++  <access origin="https://api.open-meteo.com" subdomains="false"/>
++  <access origin="https://geocoding-api.open-meteo.com" subdomains="false"/>
+   <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+ </widget>
+diff --git a/app/index.html b/app/index.html
+index 64fed61..80a0328 100644
+--- a/app/index.html
++++ b/app/index.html
+@@ -24,9 +24,11 @@
+ 
+         <div class="home" id="home">
+           <div class="caption" id="caption"></div>
++          <div class="home-clock" id="homeClock"><span class="clock" id="clockText"></span></div>
+           <nav class="utils" id="utils" aria-label="Home controls"></nav>
+           <div class="util-focus-label" id="utilFocusLabel" aria-hidden="true"></div>
+           <div class="app-focus-name" id="appFocusName" aria-hidden="true"></div>
++          <nav class="home-inputs" id="homeInputs" aria-label="HDMI shortcuts"></nav>
+           <div class="ph-plate ut-lens" id="utLens" aria-hidden="true">
+             <div class="ph-field" id="utField">
+               <img class="ph-field-img" id="utFieldImg" alt="">
+@@ -76,6 +78,12 @@
+           <div class="settings-back" id="appearanceBack"></div>
+           <h2 class="settings-title" id="appearanceTitle"></h2>
+           <div class="appearance-rows" id="appearanceRows"></div>
++          <form class="weather-search" id="weatherSearch" hidden>
++            <label for="weatherCity">Search for a city</label>
++            <input id="weatherCity" type="search" maxlength="80" autocomplete="off" required>
++            <button type="submit">Search</button>
++            <p>Press Return to cancel.</p>
++          </form>
+           <p class="appearance-desc" id="appearanceDesc"></p>
+           <div class="settings-status" id="appearanceStatus" aria-live="polite"></div>
+         </section>
+@@ -87,6 +95,7 @@
+         <div class="focus-status" id="focusStatus" aria-live="polite"></div>
+       </main>
+ <script src="device.js"></script>
++<script src="weather.js"></script>
+ <script src="assets/icons/metrics.js"></script>
+ <script src="assets/wallpapers/catalog.js"></script>
+ <script src="assets/adaptive-ink.js"></script>
+diff --git a/app/main.js b/app/main.js
+index 6496d7f..5c1a4f5 100644
+--- a/app/main.js
++++ b/app/main.js
+@@ -5,7 +5,7 @@
+   /* ---------- Bundled data ---------- */
+   var ASSETS = 'assets/', ICONS = ASSETS + 'icons/', WP = ASSETS + 'wallpapers/';
+   var CAP = 9, SCRIM_Y = 560;
+-  var DOCK_MODES = { both: { tw: 288, th: 200, pitch: 296 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
++  var DOCK_MODES = { both: { tw: 272, th: 200, pitch: 280 }, text: { tw: 288, th: 104, pitch: 296 }, icons: { tw: 176, th: 144, pitch: 184 } };
+   var GRID_ROW = 240, GRID_COL = 344, COLS = 5;
+   var ED_ROW = 80, ED_SEP = 56, ED_VIEW = 752;
+   var PH_TOP = 220, PH_PITCH = 128, PH_FULL = 5, PH_HEIGHT = 944, PH_COMPACT_TOP = 144, PH_COMPACT_PITCH = 88, PH_COMPACT_VISIBLE = 9;
+@@ -47,11 +47,19 @@
+   var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
+   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
+   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
+-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
++  var UTIL = { inputs: ['HDMI', 'inputs'], weather: ['Weather', 'weather'], art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+   var MSG = {
+     leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
+   };
+   var SVG = {
++    inputs: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4M8 10h8m-3-3 3 3-3 3"/>',
++    weather: '<path d="M7.5 18h10a3.5 3.5 0 1 0-.5-7 5.2 5.2 0 0 0-9.9 1.4A2.8 2.8 0 0 0 7.5 18Z"/><path d="M8 4v1M3 8l1 .5m9-2 .7-.8"/>',
++    screen: '<rect x="3" y="4.5" width="18" height="12.5" rx="2"/><path d="M8 21h8m-4-4v4"/>',
++    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
++    cloud: '<path d="M6 18h12a3.5 3.5 0 0 0 .2-7 6 6 0 0 0-11.5-.3A3.7 3.7 0 0 0 6 18Z"/>',
++    rain: '<path d="M6 15h12a3 3 0 0 0 0-6 5.5 5.5 0 0 0-10.5.1A3 3 0 0 0 6 15Zm2 3-1 3m6-3-1 3m6-3-1 3"/>',
++    wind: '<path d="M3 8h11a2 2 0 1 0-2-2M3 12h16a2 2 0 1 0-2-2M3 16h9a2 2 0 1 1-2 2"/>',
++    snow: '<path d="M12 3v18M4 7l16 10M4 17 20 7M9 5l3 3 3-3m-6 14 3-3 3 3"/>',
+     art: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.8" r="1.5"/><path d="m4.5 17.5 4.5-4.5 3 3 2.5-2.5 5 5"/>',
+     apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
+     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
+@@ -491,14 +499,15 @@
+   }
+ 
+   /* ---------- Navigation targets ---------- */
+-  function utils() { return ['art', 'apps', 'settings']; }
++  function utils() { return ['inputs', 'weather', 'apps', 'settings']; }
+   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
+   function axes() {
+     var v = S.c.layout === 'list';
+     return { prev: v ? 'up' : 'left', next: v ? 'down' : 'right', out: v ? 'right' : 'up', inn: v ? 'left' : 'down' };
+   }
+   function utilAction(u) {
+-    if (u === 'art') perform('Art Mode', FrameDevice.art);
++    if (u === 'inputs') openInputs();
++    else if (u === 'weather') openWeather();
+     else if (u === 'apps') openApps();
+     else openSettings();
+   }
+@@ -507,7 +516,9 @@
+   function openAppearance(group) {
+     var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus' }[group];
+     var action = S.detailFocus[group] || (axis ? 'choice.' + axis + '.' + S.c[axis] : group === 'rotation' ? 'rotation.' + S.c.mode : 'samsung.home');
+-    push({ id: 'appearance', group: group, f: { action: action } });
++    var parent = top();
++    push({ id: 'appearance', group: group, f: { action: action },
++      returnLabel: parent.id === 'home' ? 'Home' : parent.id === 'appearance' ? DETAIL_NAMES[parent.group] : 'Settings' });
+   }
+   function openMessage(key) { push({ id: 'message', msg: key, f: { b: 0 } }); }
+   function openApps() {
+@@ -531,10 +542,65 @@
+   var V = {};
+ 
+   /* ---------- Home (browse) ---------- */
++  var homeInputState = { ports: [], pending: false, checked: 0 };
++  var LAST_INPUT_KEY = 'cleanframe.last-hdmi.v1';
++  var lastInput = null;
++  try { lastInput = JSON.parse(localStorage.getItem(LAST_INPUT_KEY)); } catch (error) {}
++
++  function refreshHomeInputs(force) {
++    if (document.hidden || top().id !== 'home' || S.c.layout !== 'dock' ||
++        homeInputState.pending || (!force && Date.now() - homeInputState.checked < 30000)) return;
++    homeInputState.pending = true;
++    FrameDevice.sources(function (error, ports) {
++      homeInputState.pending = false;
++      homeInputState.checked = Date.now();
++      homeInputState.ports = error ? [] : ports;
++      var t = top();
++      if (t.id === 'home') {
++        t.f.portIndex = preferredInput(t.f.port);
++        renderHomeInputs(t);
++      }
++    });
++  }
++  function preferredInput(port) {
++    var ports = homeInputState.ports, active = -1, recent = -1;
++    for (var i = 0; i < ports.length; i++) {
++      if (ports[i].number === port) return i;
++      if (ports[i].active) active = i;
++      if (ports[i].number === lastInput) recent = i;
++    }
++    return recent >= 0 ? recent : Math.max(active, 0);
++  }
++  function homeInputKey(t, k) {
++    var f = t.f, ports = homeInputState.ports;
++    if (k === 'up' || k === 'back') { f.zone = 'apps'; return; }
++    if (k === 'left' || k === 'right') {
++      f.portIndex = clamp(f.portIndex + (k === 'left' ? -1 : 1), 0, Math.max(0, ports.length - 1));
++    }
++    f.port = ports[f.portIndex] ? ports[f.portIndex].number : null;
++    if (k === 'ok') {
++      if (f.port === null) openInputs();
++      else switchInput(t, ports[f.portIndex]);
++    }
++  }
++  function switchInput(t, input) {
++    perform(input.name, function (done) {
++      FrameDevice.setSource(input.number, function (error) {
++        if (!error) {
++          lastInput = input.number;
++          try { localStorage.setItem(LAST_INPUT_KEY, JSON.stringify(lastInput)); } catch (ignored) {}
++        }
++        if (t.id === 'home') homeInputState.checked = 0;
++        else t.refreshInputs = true;
++        done(top() === t && !document.hidden && !(error && error.cancelled) ? error : null);
++      });
++    });
++  }
+   V.home = {
+     key: function (t, k) {
+       var f = t.f, h = S.c.home, U = utils(), x = axes(), i = ensureSel();
+       if (S.c.layout === 'list') { listHomeKey(t, k, i, U); return; }
++      if (f.zone === 'inputs') { homeInputKey(t, k); return; }
+       if (f.zone === 'util') {
+         f.u = clamp(f.u, 0, U.length - 1);
+         if (k === x.prev && f.u > 0) f.u--;
+@@ -546,6 +612,7 @@
+       }
+       f.zone = 'apps';
+       if (k === x.out) { f.zone = 'util'; f.u = clamp(S.lastUtil, 0, U.length - 1); }
++      else if (k === 'down') { f.zone = 'inputs'; f.portIndex = preferredInput(f.port); refreshHomeInputs(false); }
+       else if (k === 'back') openMessage('leave');
+       else if (!h.length) { if (k === 'ok') addAppsRoute(); }
+       else if (k === x.prev && i > 0) setSel(h[i - 1]);
+@@ -554,6 +621,7 @@
+     },
+     point: function (t, z, i) {
+       if (z === 'util') { t.f.zone = 'util'; t.f.u = i; S.lastUtil = i; }
++      else if (z === 'home-input') { t.f.zone = 'inputs'; t.f.portIndex = i; }
+       else if (z === 'app') { t.f.zone = 'apps'; setSel(S.c.home[i]); }
+       else if (z === 'empty') t.f.zone = 'apps';
+       else return;
+@@ -821,7 +889,8 @@
+       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
+       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
+       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
+-      { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
++       { id: 'weather', label: 'Weather', value: window.FrameWeather.snapshot().location.name },
++       { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
+   }
+   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
+   V.settings = {
+@@ -839,9 +908,10 @@
+   };
+   function settingsOk(id) {
+     if (id === 'editor') openEditor('settings');
++    else if (id === 'weather') openWeather();
+     else openAppearance(id);
+   }
+-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'Inputs' };
++  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung', inputs: 'HDMI inputs', weather: 'Weather' };
+   function choice(axis, value, disabled) {
+     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
+       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
+@@ -851,8 +921,10 @@
+     function options(axis, values, disabled) { return values.map(function (value) { return choice(axis, value, disabled); }); }
+     if (t.group === 'inputs') return [{ id: 'inputs', title: '', items: t.inputs.length ? t.inputs.map(function (input) {
+       return { action: 'input.' + input.number, label: input.name, description: input.active ? 'Active' : input.connected ? 'Connected' : 'Disconnected — may be asleep' };
+-    }) : [{ action: 'inputs.retry', label: t.loading ? 'Loading inputs…' : 'Try again', disabled: t.loading }],
++    }).concat([{ action: 'inputs.retry', label: t.loading ? 'Refreshing…' : 'Refresh inputs', disabled: t.loading }]) :
++      [{ action: 'inputs.retry', label: t.loading ? 'Loading inputs…' : 'Try again', disabled: t.loading }],
+       reason: t.inputError || (!t.loading && !t.inputs.length ? 'No HDMI inputs were reported by this TV.' : '') }];
++    if (t.group === 'weather') return weatherSections(t);
+     if (t.group === 'background') return [
+       { id: 'bg', title: 'Background type', items: options('bg', ['photo', 'light', 'dark']) },
+       { id: 'wall', title: 'Wallpaper', items: [{ action: 'background.wallpaper', label: wall(S.c.wall).name, thumbnail: true, disabled: flat }] },
+@@ -874,11 +946,12 @@
+     return [{ id: 'samsung', title: '', items: [
+       { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
+       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' },
+-      { action: 'samsung.inputs', label: 'Inputs', description: 'Choose an HDMI input' }
++      { action: 'samsung.inputs', label: 'Inputs', description: 'Choose an HDMI input' },
++      { action: 'samsung.art', label: 'Art Mode', description: 'For TVs that support Samsung Art Mode' }
+     ] }];
+   }
+   function detailRows(t) {
+-    var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }]];
++    var rows = [[{ action: 'settings.back', label: t.returnLabel || 'Settings' }]];
+     detailSections(t).forEach(function (section) {
+       var enabled = section.items.filter(function (item) { return !item.disabled; });
+       if (section.horizontal && enabled.length) rows.push(enabled);
+@@ -916,6 +989,56 @@
+   function openInputs() {
+     openAppearance('inputs'); var t = top(); t.inputs = []; loadInputs(t);
+   }
++  function openWeather() {
++    openAppearance('weather');
++    top().f.action = 'weather.search';
++    refreshWeather(false);
++  }
++  function refreshWeather(force) {
++    if (document.hidden) return;
++    window.FrameWeather.refresh(force, function () {
++      var t = top();
++      if (!document.hidden && !t.weatherEditing) after();
++    });
++  }
++  function weatherSections(t) {
++    var forecast = window.FrameWeather.snapshot();
++    var items = [{ action: 'weather.search', label: 'Change city' }];
++    if (t.weatherResults && t.weatherResults.length) {
++      t.weatherResults.forEach(function (city, index) {
++        items.push({ action: 'weather.city.' + index, label: city.name,
++          description: [city.region, city.country].filter(Boolean).join(', ') });
++      });
++    } else {
++      items.push({ action: 'weather.refresh', label: 'Refresh forecast', disabled: forecast.loading });
++    }
++    return [{ id: 'weather', title: '', items: items, reason: t.weatherMessage || '' }];
++  }
++  function finishWeatherSearch(submit) {
++    var t = top(), query = weatherCity.value.trim();
++    if (!t.weatherEditing) return;
++    if (submit && query.length < 2) {
++      weatherCity.setCustomValidity('Enter at least two characters.');
++      if (weatherCity.reportValidity) weatherCity.reportValidity();
++      return;
++    }
++    t.weatherEditing = false;
++    weatherCity.blur();
++    focusStage();
++    if (!submit) { after(); return; }
++    t.weatherResults = null;
++    t.weatherMessage = 'Searching…';
++    var request = {};
++    t.weatherRequest = request;
++    window.FrameWeather.search(query, function (cities) {
++      if (top() !== t || t.weatherRequest !== request) return;
++      t.weatherResults = cities;
++      t.weatherMessage = cities ? cities.length ? 'Select your city.' : 'No cities found.' : 'City search is unavailable. Try again.';
++      t.f.action = cities && cities.length ? 'weather.city.0' : 'weather.search';
++      after();
++    });
++    after();
++  }
+   function detailBack() { cancelLook(); S.err = null; pop(); FrameDevice.cancelSource(); }
+   function detailOk(t, item) {
+     var patch = {}, error = S.lookError;
+@@ -932,13 +1055,24 @@
+     else if (item.action === 'samsung.home') perform('Samsung Home', FrameDevice.home);
+     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
+     else if (item.action === 'samsung.inputs') openInputs();
++    else if (item.action === 'samsung.art') perform('Art Mode', FrameDevice.art);
+     else if (item.action === 'inputs.retry') loadInputs(t);
+-    else if (item.action.indexOf('input.') === 0) perform(item.label, function (done) {
+-      FrameDevice.setSource(Number(item.action.slice(6)), function (err) {
+-        t.refreshInputs = true;
+-        done(top() === t && !document.hidden && !(err && err.cancelled) ? err : null);
+-      });
+-    });
++    else if (item.action === 'weather.search') {
++      t.weatherRequest = null;
++      t.weatherEditing = true;
++      weatherCity.value = '';
++      weatherCity.setCustomValidity('');
++      weatherSearch.hidden = false;
++      weatherCity.focus();
++    }
++    else if (item.action === 'weather.refresh') refreshWeather(true);
++    else if (item.action.indexOf('weather.city.') === 0) {
++      if (window.FrameWeather.select(t.weatherResults[Number(item.action.slice(13))])) {
++        t.weatherResults = null; t.weatherMessage = ''; t.f.action = 'weather.search';
++        refreshWeather(true);
++      } else t.weatherMessage = 'Could not save the city.';
++    }
++    else if (item.action.indexOf('input.') === 0) switchInput(t, { name: item.label, number: Number(item.action.slice(6)) });
+   }
+   V.appearance = {
+     norm: function (t) {
+@@ -999,6 +1133,9 @@
+   /* ---------- Rendering ---------- */
+   var $ = function (id) { return document.getElementById(id); };
+   var stage = $('stage'), homeEl = $('home'), caption = $('caption'), utilsEl = $('utils');
++  var clockDisplay = $('clockText');
++  var homeInputs = $('homeInputs');
++  var weatherSearch = $('weatherSearch'), weatherCity = $('weatherCity');
+   var utilFocusLabel = $('utilFocusLabel'), utilFocusKey = '', appFocusName = $('appFocusName');
+   var dock = $('dock'), shelf = $('shelf'), track = $('track'), plate = $('plate'), matScrim = $('matScrim'), dockEmpty = $('dockEmpty');
+   var cueL = $('cueL'), cueR = $('cueR'), dockAction = $('dockAction');
+@@ -1071,27 +1208,76 @@
+ 
+   function renderHome(t) {
+     var hs = homeState(t);
++    renderClock();
+     renderCaption(t, hs);
+     renderUtils(hs);
++    renderHomeInputs(t);
+     if (S.c.layout === 'list') renderList(hs);
+     else { photoMode = null; renderDock(hs); }
+     renderAppFocusName(hs);
+   }
++  function renderHomeInputs(t) {
++    homeInputs.hidden = S.c.layout !== 'dock';
++    if (homeInputs.hidden) return;
++    var ports = homeInputState.ports;
++    var selected = t.id === 'home' && t.f.zone === 'inputs' ? t.f.portIndex : -1;
++    var items = ports.length ? ports : [{ name: 'HDMI inputs' }];
++    setHTML(homeInputs, items.map(function (item, index) {
++      var status = item.active ? 'Active' : item.connected ? 'Connected' :
++        item.number !== undefined ? 'May be asleep' : '';
++      return '<button type="button" tabindex="-1" class="home-input' +
++        (item.active ? ' is-active' : '') + (selected === index ? ' is-focus' : '') +
++        '" data-z="home-input" data-i="' + index + '" data-action="home.input.' +
++        (item.number === undefined ? 'chooser' : item.number) + '" aria-label="' +
++        esc(item.name + (status ? ', ' + status : '')) + '">' + icon('screen') +
++        '<span>' + esc(item.name) + '</span></button>';
++    }).join(''));
++  }
+ 
+   function clockText() {
+     var d = new Date(), h = d.getHours() % 12 || 12, m = d.getMinutes();
+     return h + ':' + (m < 10 ? '0' : '') + m;
+   }
+-  function clockHtml() {
+-    var text = clockText(), metrics = fontMetrics[homeFont()];
+-    if (!metrics || !metrics.digitCell) return text;
+-    return text.replace(/[0-9]/g, function (digit) { return '<span class="clock-digit">' + digit + '</span>'; });
++  function renderClock() {
++    var text = clockText();
++    if (clockDisplay.textContent !== text) clockDisplay.textContent = text;
+   }
+   function renderCaption(t, hs) {
+-    var html = '<span class="clock">' + clockHtml() + '</span>';
++    var html = '';
++    var weather = window.FrameWeather.snapshot();
++    if (weather.forecast) html += '<div class="home-weather-panel"><span class="cap-line home-weather' +
++      (weather.location.name.length > 50 ? ' is-very-long-city' : weather.location.name.length > 32 ? ' is-long-city' : '') + '">' +
++      esc(weather.location.name) + (weather.stale ? ' <small class="home-weather-cache">Cached</small>' : '') +
++      '</span>' + homeForecast(weather.forecast) + '</div>';
+     if (S.c.apps !== 'icons' && hs.items[hs.i] && (S.c.layout === 'list' ? photoLabel(hs.items[hs.i].id, false).size < 88 || photoLabel(hs.items[hs.i].id, false).ellipsis : hs.zone === 'apps' && reducedDockLabel(hs.items[hs.i].id))) html += '<span class="cap-line full-name">' + esc(app(hs.items[hs.i].id).name) + '</span>';
+     setHTML(caption, html);
+   }
++  function forecastWeekday(value) {
++    var date = value.split('-');
++    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(+date[0], +date[1] - 1, +date[2]).getDay()];
++  }
++  function homeForecast(data) {
++    var today = data.today || (data.days[0] || {}).date;
++    var tomorrow;
++    if (typeof today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(today)) {
++      var date = today.split('-');
++      tomorrow = new Date(Date.UTC(+date[0], +date[1] - 1, +date[2] + 1)).toISOString().slice(0, 10);
++    }
++    var days = [{ label: 'Today', temperature: data.temperature, condition: data.condition }];
++    data.days.filter(function (day) { return day.date > today; }).slice(0, 2).forEach(function (day) {
++      days.push({ label: day.date === tomorrow ? 'Tomorrow' : forecastWeekday(day.date), temperature: day.high, condition: day.condition });
++    });
++    return '<div class="home-forecast" role="group" aria-label="Weather for today and the next two days">' + days.map(function (day, index) {
++      var label = day.condition, reading = day.temperature + '°C';
++      var glyph = label === 'Clear' ? 'sun' : label === 'Partly cloudy' ? 'weather' :
++        /Snow/.test(label) ? 'snow' : /Rain|Showers|Drizzle|Thunder/.test(label) ? 'rain' : label === 'Fog' ? 'wind' : 'cloud';
++      return '<div class="home-forecast-day">' + icon(glyph) +
++        '<span class="home-forecast-copy"><span class="home-forecast-label">' + esc(day.label) +
++        '</span><span class="home-forecast-condition">' + esc(label) + '</span></span>' +
++        '<span class="home-forecast-temperature" aria-label="' + (index ? 'Forecast high ' : 'Current temperature ') +
++        reading + '">' + reading + '</span></div>';
++    }).join('') + '</div>';
++  }
+ 
+   function utilBtn(z, i, action, inner, extra, name) {
+     return '<button type="button" tabindex="-1" class="u' + (extra || '') + '" data-z="' + z + '" data-i="' + i + '" data-action="' + action + '" aria-label="' + esc(name) + '"><span class="u-content">' + inner + '</span></button>';
+@@ -1124,7 +1310,7 @@
+     width = Math.ceil(textWidth(text, 28, 500, -.2) + 8); x = (r.left + r.width / 2 - sr.left) / scale - width / 2;
+     if (S.c.layout === 'list') x = 1730 - width;
+     utilFocusLabel.style.width = width + 'px'; utilFocusLabel.style.left = clamp(x, 112, 1808 - width) + 'px';
+-    utilFocusLabel.style.top = ((S.c.layout === 'list' ? (r.top + r.height / 2 - sr.top) / scale - 19 : 140) + fontShift('ui', 28)) + 'px';
++    utilFocusLabel.style.top = ((S.c.layout === 'list' ? (r.top + r.height / 2 - sr.top) / scale - 19 : (r.bottom - sr.top) / scale + 4) + fontShift('ui', 28)) + 'px';
+     utilFocusLabel.className = 'util-focus-label is-on';
+   }
+   function renderUtilityLens(button, iconsOnly) {
+@@ -1167,7 +1353,7 @@
+       x = 280; placement = phFields[photoPlateIndex]._placement;
+       y = placement.y + placement.height / 2 - 24;
+     } else {
+-      x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 932;
++      x = clamp(dockAnchorCenter - width / 2, 140, 1780 - width); y = 904;
+     }
+     appFocusName.style.left = x + 'px'; appFocusName.style.top = (y + fontShift('primary', S.c.layout === 'list' ? 40 : 36)) + 'px';
+     appFocusName.className = 'app-focus-name is-on';
+@@ -1228,7 +1414,7 @@
+     var items = hs.items, n = items.length, empty = hs.mode !== 'arrange' && !n, g = dockGeom(empty ? -1 : n);
+     var anchor = clamp(hs.i, 0, Math.max(0, n - 1)), off = empty ? 0 : dockOffset(n, anchor, g);
+     var full = false, ns = n;
+-    var tileFocus = hs.zone === 'apps' || hs.zone === 'tiles', tileSel = hs.zone === 'util' || hs.zone === 'act' || hs.zone === 'ctl' || hs.zone === 'preview';
++    var tileFocus = hs.zone === 'apps' || hs.zone === 'tiles', tileSel = hs.zone === 'util' || hs.zone === 'inputs' || hs.zone === 'act' || hs.zone === 'ctl' || hs.zone === 'preview';
+     var focusItem = items[anchor], s, ax, label, width;
+ 
+     dock.className = 'dock' + (empty ? ' is-empty' : '');
+@@ -1401,6 +1587,9 @@
+     FILLS[t.id](t, slotEls);
+   }
+   function renderAppearance(t) {
++    weatherSearch.hidden = !t.weatherEditing;
++    appearanceRows.hidden = !!t.weatherEditing;
++    appearanceDesc.hidden = !!t.weatherEditing;
+     appearanceEl.hidden = !isSettingsDetail(t);
+     if (appearanceEl.hidden) { appearanceEl.removeAttribute('aria-modal'); return; }
+     appearanceEl.setAttribute('aria-modal', 'true');
+@@ -1418,8 +1607,10 @@
+         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
+         + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
+     }
+-    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') + '</span>', 'setting-back'));
+-    setHTML(appearanceRows, detailSections(t).map(function (section) {
++    var returnLabel = t.returnLabel || 'Settings';
++    setHTML(appearanceBack, command({ action: 'settings.back', label: returnLabel }, icon('left') + '<span>' + esc(returnLabel) + '</span>', 'setting-back'));
++    var forecast = t.group === 'weather' && !t.weatherResults ? weatherSummary() : '';
++    setHTML(appearanceRows, forecast + detailSections(t).map(function (section) {
+       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
+         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
+         + '<div class="setting-options"' + (section.items[0].axis ? ' role="radiogroup" aria-label="' + esc(section.title || LOOK_NAMES[section.id] || DETAIL_NAMES[t.group]) + '"' : '') + '>'
+@@ -1441,9 +1632,22 @@
+         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
+     }
+     setHTML(appearanceStatus, status);
+-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : t.group === 'inputs' ? 'Samsung' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
++    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + returnLabel : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : selected.action.indexOf('weather.') === 0 ? 'Select' : 'Open on the TV';
+     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
+   }
++  function weatherSummary() {
++    var weather = window.FrameWeather.snapshot(), data = weather.forecast;
++    var header = '<p class="weather-location">' + esc(weather.location.name) + '</p>';
++    if (!data) return header + '<p class="weather-credit">' +
++      (weather.loading ? 'Loading weather…' : 'Weather unavailable. Check the TV’s internet connection.') + '</p>';
++    var days = data.days.map(function (day) {
++      return '<div class="weather-day"><strong>' + forecastWeekday(day.date) + '</strong><span>' + esc(day.condition) +
++        '</span><span>' + day.high + '° / ' + day.low + '°</span></div>';
++    });
++    return header + '<p class="weather-current">' + data.temperature + ' °C · ' + esc(data.condition) + '</p>' +
++      '<div class="weather-days">' + days.join('') + '</div><p class="weather-credit">' +
++      (weather.stale ? 'Cached forecast · ' : '') + 'Weather data: Open-Meteo</p>';
++  }
+   function renderWallpaper(t) {
+     V.wallpaper.norm(t);
+     appearanceEl.className = 'appearance detail-wallpaper';
+@@ -1792,16 +1996,22 @@
+   function updateClock() {
+     clearTimeout(clockTimer);
+     if (document.hidden) return;
+-    if (top().id === 'home' || isSettingsDetail(top())) renderCaption(top(), homeState(top()));
++    if (top().id === 'home' || isSettingsDetail(top())) renderClock();
++    refreshWeather(false);
++    refreshHomeInputs(false);
+     clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
+   }
+-  function focusStage() { try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
++  function focusStage() { if (top().weatherEditing) return; try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); } }
+   function after() {
+     norm(); var t = top();
+     if (t.group === 'inputs' && t.refreshInputs && !t.loading && !document.hidden) { t.refreshInputs = false; loadInputs(t); }
+     render(); syncRotation();
+   }
+-  function refreshInputsOnReturn() { var t = top(); if (t.group === 'inputs' && !t.loading) t.refreshInputs = true; }
++  function refreshInputsOnReturn() {
++    var t = top();
++    if (t.group === 'inputs' && !t.loading) t.refreshInputs = true;
++    refreshHomeInputs(true);
++  }
+   function goScene(name) {
+     FrameDevice.cancelSource();
+     if (top().id === 'wallpaper') cancelWallpaperTimer(top());
+@@ -1856,14 +2066,25 @@
+   });
+   stage.addEventListener('click', function (ev) {
+     var el = ev.target;
++    if (weatherSearch.contains(el)) return;
++    if (top().weatherEditing) { finishWeatherSearch(false); return; }
+     while (el && el !== stage && !(el.getAttribute && el.getAttribute('data-z'))) el = el.parentNode;
+     focusStage();
+     if (!el || el === stage) return;
+     pointAt(el);
+   });
+   var heldKeys = {};
++  weatherCity.addEventListener('input', function () { weatherCity.setCustomValidity(''); });
++  weatherSearch.addEventListener('submit', function (ev) { ev.preventDefault(); finishWeatherSearch(true); });
+   document.addEventListener('keydown', function (ev) {
+     var code = ev.keyCode, k = KEYS[code];
++    if (top().weatherEditing) {
++      if (code === 65376 || code === 65385 || (k === 'back' && code !== 8)) {
++        ev.preventDefault();
++        finishWeatherSearch(code === 65376);
++      }
++      return;
++    }
+     if (code === 9) { ev.preventDefault(); return; }
+     if (!k || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+     ev.preventDefault();
+diff --git a/app/style.css b/app/style.css
+index e9cd3ac..72e83d2 100644
+--- a/app/style.css
++++ b/app/style.css
+@@ -597,6 +597,58 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
+ /* Child margins preserve flex spacing on engines without flex gap.
+    Auto-margin controls use padding to retain their minimum separation. */
+ .caption>*+*{margin-top:4px}
++.home-clock{position:absolute;left:50%;top:22%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;color:#f8f4eb;text-shadow:0 3px 8px rgba(4,12,20,.75),0 9px 28px rgba(4,12,20,.46)}
++.home-clock .clock{display:block;font-size:174px;line-height:1.04;font-weight:500;letter-spacing:-.065em;color:inherit;text-shadow:inherit;opacity:1}
++.font-custom .home-clock .clock{letter-spacing:-.055em}
++.bg-dark .home-clock,.bg-light .home-clock{color:var(--ink);text-shadow:none}
++.l-dock .home .quiet-utils{left:50%;right:auto;top:28px;transform:translateX(-50%)}
++.bg-photo.l-dock .home .quiet-utils .u{color:#f8f4eb;text-shadow:0 2px 6px rgba(0,0,0,.64)}
++.l-list .home-clock{left:auto;right:122px;top:62px;transform:none}
++.l-list .home-clock .clock{font-size:108px}
++.l-dock .caption{left:90px;top:244px}
++.l-list .caption{top:206px}
++.home-weather-panel{align-self:flex-start;width:436px;margin-left:-18px;padding:14px 18px 12px;border:1px solid rgba(247,246,241,.22);border-radius:26px;background:linear-gradient(135deg,rgba(12,20,25,.67),rgba(18,29,34,.56));box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 20px rgba(0,0,0,.12);color:#f6f1e7}
++.stage .caption .home-weather-panel .home-weather{display:block;font-size:34px;line-height:1.14;color:inherit;text-shadow:0 1px 3px rgba(0,0,0,.35);white-space:normal;word-wrap:break-word;overflow-wrap:break-word;overflow:visible;text-overflow:clip}
++.stage .caption .home-weather-panel .is-long-city{font-size:27px}
++.stage .caption .home-weather-panel .is-very-long-city{font-size:22px}
++.stage.bg-light .caption .home-weather-panel .home-weather{text-shadow:none}
++.l-list .home-weather-panel{align-self:flex-end;margin-left:0;margin-right:-18px;text-align:left}
++.bg-light .home-weather-panel{background:#e9e5dc;border-color:#c8c4ba;color:#272723}
++.home-weather-cache{font-size:22px;font-weight:400;margin-left:10px}
++.home-forecast{display:flex;flex-direction:column;color:inherit;padding-top:10px;text-shadow:0 1px 4px rgba(0,0,0,.45);font-variant-numeric:tabular-nums}
++.home-forecast-day{display:flex;align-items:center;min-height:84px;padding:8px 0}
++.home-forecast-day+.home-forecast-day{border-top:1px solid rgba(255,255,255,.32)}
++.home-forecast-copy{display:flex;flex:1;min-width:0;flex-direction:column;margin:0 12px}
++.home-forecast-label{font-size:29px;line-height:35px}
++.home-forecast .ico{width:58px;height:58px;flex:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
++.home-forecast-temperature{flex:none;font-size:37px;line-height:44px;font-weight:500;white-space:nowrap}
++.home-forecast-condition{font-size:22px;line-height:28px}
++.bg-light .home-forecast{text-shadow:none}
++.bg-light .home-forecast-day+.home-forecast-day{border-color:rgba(39,39,35,.26)}
++.l-list .home-forecast{justify-content:flex-end}
++.home-inputs{position:absolute;left:50%;top:944px;transform:translateX(-50%);display:flex;align-items:center;max-width:1640px;min-height:86px;padding:8px 14px;border-radius:48px;border:2px solid rgba(242,244,240,.25);background:linear-gradient(140deg,rgba(31,38,37,.94),rgba(18,32,36,.86));box-shadow:0 6px 20px rgba(5,12,17,.25);color:#f6f1e7}
++.home-input{display:flex;align-items:center;justify-content:center;flex:none;min-width:246px;height:66px;padding:0 24px;border-radius:35px;color:inherit;font-size:29px;line-height:36px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.3)}
++.home-input+.home-input{margin-left:10px}
++.home-input .ico{width:38px;height:38px;margin-right:16px}
++.home-input.is-active{background:linear-gradient(150deg,rgba(255,255,255,.25),rgba(255,255,255,.12));box-shadow:inset 0 1px 0 rgba(255,255,255,.18)}
++.home-input.is-focus{background:#f3efe6;color:#172028;text-shadow:none;box-shadow:0 0 0 2px rgba(255,255,255,.45)}
++.bg-photo.l-dock .mat::after{box-shadow:inset 0 0 0 1px rgba(255,255,255,.20)}
++.bg-light .home-inputs{background:#e8e4db;border-color:#bdb8ab;color:#272723}
++.bg-light .home-input{ text-shadow:none }
++.bg-light .home-input.is-active{background:#d0cbc0}
++.bg-light .home-input.is-focus{background:#282824;color:#f8f4ea}
++.settings-group{height:96px}
++.detail-weather .weather-location{font-size:42px;font-weight:500;line-height:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
++.detail-weather .weather-current{font-size:34px;line-height:52px}
++.weather-credit{margin:10px 0 28px;font-size:24px;line-height:32px;color:var(--mute)}
++.weather-days{display:flex;margin-top:18px}
++.weather-day{display:flex;flex:1;min-width:0;flex-direction:column;padding:12px;font-size:24px;line-height:34px;border:1px solid currentColor;border-radius:12px}
++.weather-day+.weather-day{margin-left:10px}
++.detail-weather .setting-name{white-space:normal}
++.weather-search{position:absolute;left:140px;top:245px;width:650px;font-size:32px;line-height:1.4;pointer-events:auto}
++.weather-search label,.weather-search input{display:block;width:100%}
++.weather-search input,.weather-search button{margin-top:12px;padding:12px;border:2px solid currentColor;border-radius:10px;background:var(--solid);color:var(--solid-ink);font:inherit}
++.weather-search p{margin-top:16px;font-size:24px;color:var(--mute)}
+ .warn>*+*{margin-left:12px}
+ .utils>*+*{margin-left:8px}
+ .quiet-utils>*+*{margin-left:20px}
+diff --git a/docs/interaction-behaviour.md b/docs/interaction-behaviour.md
+index c7f6289..c94d46e 100644
+--- a/docs/interaction-behaviour.md
++++ b/docs/interaction-behaviour.md
+@@ -2,7 +2,7 @@
+ 
+ ## Home
+ 
+-- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with Art Mode or the last selected control. Left/Right moves between Art Mode, All apps and Settings. Down or Back returns to the selected app. The clock is at the top left.
++- Dock: Left/Right scrolls the apps without wrapping. Up enters the top-right controls, starting with HDMI or the last selected control. Left/Right moves between HDMI, Weather, All apps and Settings. Down or Back returns to the selected app. The clock and current weather are at the top left.
+ - List: Up/Down scrolls the apps without wrapping. Right enters the bottom-right controls, aligned with the clock above. Up/Down moves between Art Mode, All apps and Settings. Left or Back returns to the selected app. The list fades at both ends as it scrolls.
+ - OK opens the selected item. Focus alone never launches an app.
+ - Icons-only apps and controls reveal their names when focused. App presentation and control presentation are independent.
+@@ -12,7 +12,7 @@
+ 
+ ## Settings and appearance
+ 
+-Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps on Home and Samsung. OK opens a group. Appearance groups use a two-pane screen with visible choices on the left and the committed Home preview on the right.
++Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps on Home, Weather and Samsung. OK opens a group. Appearance groups use a two-pane screen with visible choices on the left and the committed Home preview on the right.
+ 
+ | Group | Choices |
+ | --- | --- |
+@@ -21,7 +21,8 @@ Settings opens a grouped overview: Background, Layout, Typography, Focus, Apps o
+ | Typography | Manrope, Neue Montreal, Mori, Pangram Sans, Geist and Newsreader, when available |
+ | Focus | Type or Glass; Soft, Frost or Clear tint material |
+ | Apps on Home | Membership and arrangement editor |
+-| Samsung | Samsung Home, TV settings and Inputs |
++| Weather | Forecast, refresh and city selection |
++| Samsung | Samsung Home, TV settings, Inputs and Art Mode |
+ 
+ Up/Down moves between rows. Left/Right moves between choices in a horizontal row. Focus alone changes neither the preview nor saved preferences in these appearance groups. Wallpaper has its own temporary photo preview, described below. OK applies the focused value. A checkmark identifies the applied value; the filled plate identifies remote focus. Applying the current value does not write again.
+ 
+@@ -66,9 +67,13 @@ Installed-app discovery allows up to 20 seconds for large TV catalogues; launch
+ 
+ ## HDMI inputs
+ 
+-Settings → Samsung → Inputs opens the HDMI chooser. The adapter reads the TV’s actual connected and disconnected source records, including sleeping devices that may be listed as disconnected. It does not guess a universal port count or add a fourth default Home control. Missing APIs, denied access and discovery failure produce an unavailable/error state rather than invented ports. The active source comes from the synchronous `tvwindow.getSource()` return value.
++The HDMI control on Home opens the same chooser as Settings → Samsung → Inputs. The adapter reads the TV’s actual connected and disconnected source records, including sleeping devices that may be listed as disconnected. Missing APIs, denied access and discovery failure produce an unavailable/error state rather than invented ports. The active source comes from the synchronous `tvwindow.getSource()` return value.
+ 
+-Up/Down selects an input. OK requests that exact source; Back returns to Samsung Settings. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
++Up/Down selects an input. OK requests that exact source. Back returns to the screen that opened the chooser. Retry after a failed load rereads the available sources. A routing error remains an error, and a failed handoff leaves the launcher usable. Timed-out or cancelled requests cannot start a later routing or viewer action; a native request already sent to the TV may itself be uncancellable.
++
++## Weather
++
++Weather on Home or in Settings opens current conditions and a three-day Celsius forecast. Use **Change city** to search with the TV keyboard and choose a matching city. Budapest is the initial location on a fresh install. The city and most recent forecast are stored locally. The foreground launcher fetches from Open-Meteo at most once every 15 minutes unless manually refreshed, and can show a labeled cached result for up to six hours.
+ 
+ Selecting a source, opening Samsung’s viewer, seeing the expected HDMI picture and waking a CEC device are separate results. The portable implementation does not import firmware-specific viewer payloads or claim to wake a sleeping device. No input discovery or polling runs during hidden startup.
+ 
+diff --git a/scripts/check-browser.mjs b/scripts/check-browser.mjs
+index a4033c3..53b048d 100644
+--- a/scripts/check-browser.mjs
++++ b/scripts/check-browser.mjs
+@@ -120,6 +120,9 @@ async function page(options = {}, setup) {
+   current.setDefaultTimeout(10000);
+   const expected = [];
+   current.__expectedFailures = expected;
++  await current.route('https://api.open-meteo.com/**', route => route.fulfill({
++    headers: { 'access-control-allow-origin': '*' }, json: {}
++  }));
+   current.on('pageerror', error => report.pageErrors.push({ section, error: error.message }));
+   current.on('response', response => { if (response.status() >= 400 && !expected.some(s => response.url().includes(s))) report.pageErrors.push({ section, status: response.status(), url: response.url() }); });
+   current.on('requestfailed', request => {
+@@ -361,7 +364,7 @@ try {
+           });
+         }, { layout, controls });
+         check(layout + '/' + controls + ' uses spacing between visible children at ' + width,
+-          spacing.length === 3 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
++          spacing.length === 4 && spacing.every(s => s.children === (controls === 'both' ? 2 : 1) && Math.abs(s.extraWidth - s.gap) < .5), spacing);
+         const focused = [];
+         for (let i = 0; i < 3; i++) {
+           if (i) await nav(layout === 'dock' ? 'right' : 'down');
+@@ -402,7 +405,7 @@ try {
+         const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
+         return elements.map(e => (e.querySelector('.ico').getBoundingClientRect().left - e.querySelector('.settings-group-copy').getBoundingClientRect().right) / scale);
+       });
+-      check('Settings group arrows stay separate from their copy at ' + width, groups.length === 6 && groups.every(gap => gap >= 31.5), groups);
++      check('Settings group arrows stay separate from their copy at ' + width, groups.length === 7 && groups.every(gap => gap >= 31.5), groups);
+       await wallpaper();
+       const caption = await current.locator('.wallpaper-preview-name').evaluate(e => {
+         const scale = document.getElementById('stage').getBoundingClientRect().width / 1920;
+@@ -417,7 +420,7 @@ try {
+       await current.setViewportSize({ width, height: width * 9 / 16 }); await look({ layout });
+       await group('samsung'); await act('samsung.inputs');
+       await current.waitForSelector('[data-action="input.1"]');
+-      const entries = await current.locator('.section-inputs .setting-choice').allTextContents();
++      const entries = await current.locator('.section-inputs [data-action^="input."]').allTextContents();
+       check('Inputs reflect actual ports and sleeping/active status ' + layout + '/' + width,
+         entries.length === 3 && entries.some(x => /HDMI 1.*Disconnected/.test(x)) && entries.some(x => /HDMI 2.*Active/.test(x)) && !entries.some(x => /HDMI 4/.test(x)), entries);
+       check('Inputs fit and retain one focus ' + layout + '/' + width, await current.locator('.section-inputs .setting-choice').evaluateAll(elements => {
+@@ -465,7 +468,7 @@ try {
+     await scene('home'); await act('home.app.netflix'); await current.waitForFunction(() => __tv.calls.length === 2);
+     check('Primary app keeps verified target', (await current.evaluate(() => __tv.calls.at(-1))).id === IDS[1]);
+     await current.evaluate(() => window.dispatchEvent(new Event('focus')));
+-    await act('util.art'); await current.waitForFunction(() => __tv.calls.length === 3);
++    await group('samsung'); await act('samsung.art'); await current.waitForFunction(() => __tv.calls.length === 3);
+     const art = await current.evaluate(() => __tv.calls.at(-1));
+     check('Art Mode uses app-control with fullscreen request', art.method === 'launchAppControl' && art.id === 'org.tizen.art-app' && art.control.data.some(d => d.key === 'mode' && d.value[0] === 'fullscreen'), art);
+     await current.evaluate(() => window.dispatchEvent(new Event('focus'))); await group('samsung'); await act('samsung.home');
+@@ -594,8 +597,8 @@ try {
+   });
+   await run('Settings overview and visible choices', async () => {
+     await page(); await scene('settings');
+-    const expected = ['settings.group.background', 'settings.group.layout', 'settings.group.typography', 'settings.group.focus', 'settings.editor', 'settings.group.samsung'];
+-    check('Overview has all six settings groups', same((await call('actions')).filter(a => expected.includes(a)).sort(), expected.slice().sort()));
++    const expected = ['settings.group.background', 'settings.group.layout', 'settings.group.typography', 'settings.group.focus', 'settings.editor', 'settings.group.weather', 'settings.group.samsung'];
++    check('Overview has all seven settings groups', same((await call('actions')).filter(a => expected.includes(a)).sort(), expected.slice().sort()));
+     const specs = {
+       background: { bg: ['dark', 'light', 'photo'] },
+       layout: { layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], controls: ['icons', 'both', 'text'] },
+@@ -1068,7 +1071,7 @@ try {
+     await current.evaluate(() => { __setHidden(true); document.getElementById('stage').blur(); __setHidden(false); window.dispatchEvent(new Event('focus')); });
+     const focus = (await state()).focusAction; await current.keyboard.press('ArrowDown');
+     check('Warm return restores remote focus', (await state()).focusAction !== focus && (await call('where')).focusCount === 1);
+-    const clock = await current.locator('#caption .clock').textContent();
++    const clock = await current.locator('#homeClock .clock').textContent();
+     check('Live 12-hour clock has no AM/PM', /^\s*\d{1,2}:\d{2}\s*$/.test(clock), clock);
+   });
+   await run('Open rotation and browser fallback', async () => {
+diff --git a/app/weather.js b/app/weather.js
+new file mode 100644
+index 0000000..b421305
+--- /dev/null
++++ b/app/weather.js
+@@ -0,0 +1,125 @@
++/* Local city preference and a bounded Open-Meteo forecast request. */
++(function () {
++  'use strict';
++  var LOCATION_KEY = 'cleanframe.weather.location.v1';
++  var FORECAST_KEY = 'cleanframe.weather.forecast.v1';
++  var DEFAULT = { name: 'Budapest', country: 'Hungary', latitude: 47.4979, longitude: 19.0402 };
++  var FORECAST = 'https://api.open-meteo.com/v1/forecast';
++  var SEARCH = 'https://geocoding-api.open-meteo.com/v1/search';
++  var UPDATE_MS = 15 * 60 * 1000;
++  var MAX_CACHE_MS = 6 * 60 * 60 * 1000;
++  var location = read(LOCATION_KEY);
++  if (!validLocation(location)) location = DEFAULT;
++  var cached = read(FORECAST_KEY);
++  var nextRequest = 0;
++  var requestInProgress = null;
++  var unavailable = false;
++
++  function read(key) {
++    try { return JSON.parse(localStorage.getItem(key)); } catch (error) { return null; }
++  }
++  function validNumber(value) { return typeof value === 'number' && isFinite(value); }
++  function validLocation(value) {
++    return value && typeof value.name === 'string' && value.name.trim() &&
++      validNumber(value.latitude) && Math.abs(value.latitude) <= 90 &&
++      validNumber(value.longitude) && Math.abs(value.longitude) <= 180;
++  }
++  function coordinateKey(value) { return value.latitude + ',' + value.longitude; }
++  function validCache(entry, age) {
++    var forecast = entry && entry.forecast;
++    return entry && entry.key === coordinateKey(location) && age >= 0 && age < MAX_CACHE_MS &&
++      forecast && validNumber(forecast.temperature) && typeof forecast.condition === 'string' &&
++      Array.isArray(forecast.days) && forecast.days.length <= 3 && forecast.days.every(function (day) {
++        return day && typeof day.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day.date) &&
++          validNumber(day.high) && validNumber(day.low) && typeof day.condition === 'string';
++      });
++  }
++  function request(url, done) {
++    var xhr = new window.XMLHttpRequest();
++    xhr.open('GET', url, true);
++    xhr.timeout = 8000;
++    xhr.onload = function () {
++      var data;
++      try { data = JSON.parse(xhr.responseText); } catch (error) { done(null); return; }
++      done(xhr.status >= 200 && xhr.status < 300 ? data : null);
++    };
++    xhr.onerror = xhr.ontimeout = function () { done(null); };
++    try { xhr.send(); } catch (error) { done(null); }
++  }
++  function condition(code) {
++    if (code === 0) return 'Clear';
++    if (code === 1 || code === 2) return 'Partly cloudy';
++    if (code === 3) return 'Overcast';
++    if (code === 45 || code === 48) return 'Fog';
++    if (code >= 51 && code <= 57) return 'Drizzle';
++    if (code >= 61 && code <= 67) return 'Rain';
++    if (code >= 71 && code <= 77) return 'Snow';
++    if (code >= 80 && code <= 82) return 'Showers';
++    if (code === 85 || code === 86) return 'Snow showers';
++    if (code >= 95 && code <= 99) return 'Thunderstorms';
++    return 'Conditions unavailable';
++  }
++  function parseForecast(data) {
++    var current = data && data.current, daily = data && data.daily;
++    if (!current || !validNumber(current.temperature_2m) || !validNumber(current.weather_code)) return null;
++    var days = daily && Array.isArray(daily.time) ? daily.time.slice(0, 3).map(function (date, index) {
++      if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
++      var high = (daily.temperature_2m_max || [])[index];
++      var low = (daily.temperature_2m_min || [])[index];
++      var code = (daily.weather_code || [])[index];
++      if (!validNumber(high) || !validNumber(low) || !validNumber(code)) return null;
++      return { date: date, high: Math.round(high), low: Math.round(low), condition: condition(code) };
++    }).filter(Boolean) : [];
++    var today = typeof current.time === 'string' ? current.time.slice(0, 10) : (days[0] || {}).date;
++    return { temperature: Math.round(current.temperature_2m), condition: condition(current.weather_code), today: today, days: days };
++  }
++  function snapshot() {
++    var age = cached ? Date.now() - cached.at : Infinity;
++    return {
++      location: location,
++      forecast: validCache(cached, age) ? cached.forecast : null,
++      stale: unavailable || age >= 2 * UPDATE_MS,
++      loading: !!requestInProgress, unavailable: unavailable
++    };
++  }
++  function refresh(force, done) {
++    if (requestInProgress || (!force && Date.now() < nextRequest)) return;
++    var key = coordinateKey(location), token = {};
++    requestInProgress = token;
++    nextRequest = Date.now() + UPDATE_MS;
++    request(FORECAST + '?latitude=' + location.latitude + '&longitude=' + location.longitude +
++      '&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min' +
++      '&forecast_days=3&timezone=auto', function (data) {
++      if (requestInProgress !== token) return;
++      requestInProgress = null;
++      var forecast = parseForecast(data);
++      unavailable = !forecast;
++      if (forecast) {
++        cached = { key: key, at: Date.now(), forecast: forecast };
++        try { localStorage.setItem(FORECAST_KEY, JSON.stringify(cached)); } catch (error) {}
++      }
++      done();
++    });
++  }
++  function select(place) {
++    if (!validLocation(place)) return false;
++    try { localStorage.setItem(LOCATION_KEY, JSON.stringify(place)); } catch (error) { return false; }
++    location = place;
++    requestInProgress = null;
++    unavailable = false;
++    nextRequest = 0;
++    return true;
++  }
++  function search(query, done) {
++    request(SEARCH + '?name=' + encodeURIComponent(query) + '&count=3&language=en', function (data) {
++      if (!data) { done(null); return; }
++      var places = Array.isArray(data.results) ? data.results.slice(0, 3) : [];
++      done(places.filter(validLocation).map(function (place) {
++        return { name: place.name.slice(0, 70), region: String(place.admin1 || '').slice(0, 70),
++          country: String(place.country || '').slice(0, 70), latitude: place.latitude, longitude: place.longitude };
++      }));
++    });
++  }
++
++  window.FrameWeather = { snapshot: snapshot, refresh: refresh, search: search, select: select };
++})();

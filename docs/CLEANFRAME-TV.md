@@ -1,16 +1,27 @@
 # CleanFrame on Samsung UE43RU7102KXXH
 
-Installed on November 25, 2026 over Samsung SDB. The public-font CleanFrame 0.7.0 widget comes from upstream commit `845f332d083502fab39be49869052966103b564a`. The upstream source checkout is in `work/CleanFrame-review`. Both local packages are signed with `TV OS Partner TV`.
+CleanFrame 0.7.7 was installed and launched on November 25, 2026 on Tizen 5.0, firmware T-MSLDEUC-1500.9. The owner approved the final layout. See the [rebuild guide](../samsung/cleanframe/README.md) for the pinned upstream commit, source patch, build and signing steps.
 
-- CleanFrame package `8bMXxgJh3O`, foreground app `8bMXxgJh3O.CleanFrameLocal`, signed artifact `work/CleanFrame-local.wgt`.
-- CleanFrame Startup package `ClnFrmBoot`, service `ClnFrmBoot.Autostart`, signed artifact `work/CleanFrame-startup.wgt`.
+CleanFrame Startup is a separate Partner-signed Tizen Web Service that requests the foreground launch on boot or wake. It runs on the TV. The helper passed mocked boot, deduplication and standby/wake checks. Samsung confirmed installation and later reinstallation of the helper. Startup timing and first-screen placement were not verified on the final build. To disable automation, remove **CleanFrame Startup** from **Samsung Apps → Settings**.
 
-The launcher identity came from a Samsung SDK web project. To reproduce the unsigned builds, run `python -B scripts/export-public.py` in `work/CleanFrame-review`, then `python -B work/build-cleanframe-local.py` from the session workspace. Sign both WGT files using `tz pack --type wgt --base-pkg <unsigned> --out-path <signed> --profiles-path <profiles.xml> --sign-profile "TV OS Partner TV"`. Install each through the ordinary Tizen SDK app installer. The helper uses the TV's loopback power-state endpoint and the Tizen launch API. No PC watcher is needed.
+Free My TV and its old timing helper initially resisted developer uninstall commands with a `closed` response. A later package listing confirmed both were absent after the owner removed the old apps.
 
-The browser preview, manifest and synthetic adapter checks passed, as did the helper's mocked boot, deduplication and standby/wake scenarios. The TV reported both installs complete and accepted the CleanFrame foreground launch. The developer bridge rejected a direct launch of the service ID with `launch failed[400]`. Automatic wake and visible rendering still need a real TV test.
+## Update history
 
-The TV returned `closed` for the developer uninstall commands targeting Free My TV and Free My TV Startup Test. Both remain listed. The TV accepted an in-place update of the old tester to version 1.0.5 with no web service or launch code. Finish removing the two old entries in **Samsung Apps → Settings**. Keep **CleanFrame Startup** installed for automatic launch. To disable the new automation, remove **CleanFrame Startup** in the same menu.
+Local CleanFrame 0.7.1 changes the launcher clock to 24-hour `HH:mm` in both layouts. The upstream widget has no clock-format setting. Midnight, morning, noon, evening and end-of-day formatting passed locally. Samsung reported the in-place update and a manual launch successful. The actual TV display was not observed.
 
-After reconnecting the SDK, both uninstall commands again returned `closed` for each old package. Fresh app listings confirmed all four package entries.
+After the owner cleared old apps, a fresh TV package listing showed CleanFrame still installed, both Free My TV packages absent, and CleanFrame Startup absent as well. Reinstalled only the previously signed CleanFrame Startup widget. Samsung confirmed installation and the final listing showed both CleanFrame packages with both old apps still absent. A physical wake test after reinstall remains pending.
 
-Local CleanFrame 0.7.1 changes the launcher clock to 24-hour `HH:mm` in both layouts. The upstream widget has no clock-format setting. Midnight, morning, noon, evening and end-of-day formatting passed locally. Samsung reported the in-place update and a manual launch successful. The signed update is `work/CleanFrame-local-24h.wgt`. The actual TV display was not observed.
+Local CleanFrame 0.7.2 adds a Home HDMI control in Dock and List, reusing the Samsung input chooser, active/connected status and TV viewer handoff. Weather shows current Celsius conditions on Home and a three-day forecast. The city is editable in Weather, with Budapest as the default. Requests go directly to Open-Meteo from the TV. The most recent forecast can be shown from the local cache. Art Mode remains under Settings → Samsung. The 24-hour clock remains in the build.
+
+Keyboard navigation, the HDMI handoff with mocked Tizen APIs, city search and persistence, and offline cache passed in the browser. A live API test from the PC passed. The TV confirmed installation and accepted the launch. Actual HDMI switching and weather requests from the TV itself still need on-screen verification.
+
+Local CleanFrame 0.7.3 matches the supplied Home reference using the existing photo and glass assets. Dock shows six full app tiles when available, Home weather has forecast icons, and Dock adds an HDMI strip below the apps. Down enters the strip, Left/Right selects, OK switches, and Up or Back returns to apps. The active indicator refreshes on return and the last successfully selected port is remembered locally. The HDMI manager remains available in Dock and List and includes a refresh action.
+
+Browser tests verified the layout, keyboard traversal, exact port routing with mocked Tizen APIs, return refresh, saved input across reloads, and weather behavior. The TV confirmed installation and accepted the app launch. Visible TV rendering and actual input switching still need physical verification. The browser preview uses sample weather and simulated HDMI ports.
+
+Local CleanFrame 0.7.4 replaces the small Home forecast icons with larger columns for Today and the following two days. Today shows the current temperature and later columns show daily forecast highs. The tests checked the day labels, readings, conditions, image size, and cached data on Home. The TV confirmed installation and launch. The preview uses sample weather and HDMI ports.
+
+Local CleanFrame 0.7.5 gives the city and three Home forecast columns a translucent shaded background. Light mode uses a pale panel. The browser flow passed and the TV confirmed the signed update and launch.
+
+Local CleanFrame 0.7.7 follows the user's Paint reference. The Dock menu is centered along the top, the large 24-hour clock is centered underneath it, and the weather panel is lower on the left. The forecast stacks today, tomorrow and the following day. Browser checks verified placement and that a 70-character city name wraps inside the panel without overlapping the Dock. The TV confirmed the signed update and launch.

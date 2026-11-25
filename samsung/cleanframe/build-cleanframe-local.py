@@ -37,7 +37,7 @@ def main():
 
     def cleanframe(manifest, files):
         manifest.set("id", f"urn:cleanframe:local:{package_id}")
-        manifest.set("version", "0.7.1")
+        manifest.set("version", "0.7.7")
         manifest.find("t:application", NS).attrib.update(id=app_id, package=package_id)
         old = b"'nClrkHome1.FrameHome'"
         if files["device.js"].count(old) != 1:
