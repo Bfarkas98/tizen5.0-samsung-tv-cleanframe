@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TV OS Coast</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="preferences.js"></script>
+<script defer src="platform.js"></script>
+<script defer src="home.js"></script>
+</head>
+<body>
+<main>
+  <header><span class="wordmark">TV OS <span>Coast</span></span><time id="clock"></time></header>
+  <nav id="nav" aria-label="Sections"></nav>
+  <section class="summary" aria-labelledby="title"><h1 id="title">Home</h1><p id="description"></p></section>
+  <section class="content" aria-label="Current section">
+    <div id="query" hidden></div><div id="keyboard" hidden></div>
+    <div class="section-heading"><h2 id="shelf-title"></h2><span id="position"></span></div>
+    <div id="dock"></div>
+  </section>
+  <footer><span id="hint"></span><output id="status" aria-live="polite"></output></footer>
+</main>
+</body>
+</html>

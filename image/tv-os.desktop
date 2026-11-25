@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=TV OS
+Exec=/usr/local/bin/start-visual-session
+Type=Application

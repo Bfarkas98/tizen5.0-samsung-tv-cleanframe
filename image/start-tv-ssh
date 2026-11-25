@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -ne 0 ] || [ "$#" -ne 1 ]; then
+    echo 'Usage: sudo start-tv-ssh /path/to/pc-public-key.pub' >&2
+    exit 1
+fi
+ssh-keygen -lf "$1" >/dev/null
+install -d -m755 /run/sshd
+install -m644 "$1" /run/tv-os-authorized-key
+ssh-keygen -A
+cat >/run/tv-os-sshd.conf <<'EOF'
+Port 2222
+PidFile /run/tv-os-sshd.pid
+AuthorizedKeysFile /run/tv-os-authorized-key
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+AllowUsers user
+UsePAM yes
+AllowTcpForwarding local
+EOF
+/usr/sbin/sshd -t -f /run/tv-os-sshd.conf
+exec /usr/sbin/sshd -f /run/tv-os-sshd.conf

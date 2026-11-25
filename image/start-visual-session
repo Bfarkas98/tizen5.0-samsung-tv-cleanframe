@@ -1,0 +1,7 @@
+#!/bin/sh
+export LANG=C.UTF-8
+openbox &
+while :; do
+    /usr/bin/python3 /opt/tv-os/visual.py --kiosk
+    sleep 2
+done

@@ -1,0 +1,21 @@
+[Unit]
+Description=TV OS launcher
+Conflicts=getty@tty1.service
+After=systemd-user-sessions.service getty@tty1.service
+
+[Service]
+Type=simple
+DynamicUser=yes
+ExecStart=/usr/bin/python3 /opt/tv-os/launcher.py
+Environment=TERM=linux
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

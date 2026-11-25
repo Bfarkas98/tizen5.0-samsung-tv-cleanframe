@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="urn:free-my-tv:startup-test" version="1.0.4" viewmodes="maximized">
+    <tizen:application id="FMyTVBoot1.Helper" package="FMyTVBoot1" required_version="5.0"/>
+    <name>Free My TV Startup Test</name>
+    <description>Tests opening the installed Free My TV application when the TV turns on.</description>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <feature name="http://tizen.org/feature/web.service"/>
+    <access origin="http://127.0.0.1:8001" subdomains="false"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:profile name="tv-samsung"/>
+    <tizen:service id="FMyTVBoot1.Autostart" on-boot="true">
+        <tizen:content src="autostart.js"/>
+        <tizen:name>Free My TV Autostart</tizen:name>
+        <tizen:description>Opens the installed app on startup and observed wake.</tizen:description>
+    </tizen:service>
+    <tizen:setting screen-orientation="landscape" context-menu="disable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>
