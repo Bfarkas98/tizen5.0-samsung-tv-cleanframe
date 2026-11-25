@@ -2,7 +2,7 @@
 
 An independent adaptation of **[CleanFrame by Nathan Clark (nthnclrk)](https://github.com/nthnclrk/CleanFrame)**, the original launcher for Samsung The Frame. This project adapts the interface for an older Samsung TV and runs as a sideloaded Tizen web application alongside Samsung Smart Hub. The original project, design, and assets are credited to their respective authors.
 
-[Install on your TV](samsung/cleanframe/README.md) · [Give this guide to an AI agent](AGENTS.md) · [Compatibility and test results](docs/CLEANFRAME-TV.md)
+[Download v0.7.7](https://github.com/Bfarkas98/tizen5.0-samsung-tv-cleanframe/releases/tag/v0.7.7) · [Install on your TV](samsung/cleanframe/README.md) · [Give this guide to an AI agent](AGENTS.md) · [Compatibility and test results](docs/COMPATIBILITY.md)
 
 ![CleanFrame 0.7.7 home screen with the clock, weather, app dock, and HDMI shortcuts](docs/screenshots/CleanFrame-0.7.7-preview.jpg)
 
@@ -22,7 +22,7 @@ These are browser captures of the 0.7.7 interface using sample weather and simul
 
 ## Compatibility
 
-Samsung's developer tools confirmed installation and launch on a **UE43RU7102KXXH** running **Tizen 5.0** and firmware **T-MSLDEUC-1500.9**. HDMI switching and weather have browser test coverage. On-device behavior and support across other models may vary. See the [test record](docs/CLEANFRAME-TV.md).
+Samsung's developer tools confirmed installation and launch on a **UE43RU7102KXXH** running **Tizen 5.0** and firmware **T-MSLDEUC-1500.9**. HDMI switching and weather have browser test coverage. On-device behavior and support across other models may vary. See the [compatibility table](docs/COMPATIBILITY.md) for feature-by-feature results and a link to report your model.
 
 ## Source and credits
 

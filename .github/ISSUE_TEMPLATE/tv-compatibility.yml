@@ -1,0 +1,44 @@
+name: TV compatibility report
+description: Report a working install or a problem on your Samsung TV.
+title: "[Compatibility] <TV model> / <firmware>"
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Samsung model
+      placeholder: UE43RU7102KXXH
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware and Tizen version
+      placeholder: T-MSLDEUC-1500.9, Tizen 5.0 (if known)
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: CleanFrame version and build route
+      placeholder: 0.7.7 release download, or source commit
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results on the TV
+      description: Use Works, Fails, or Untested for each item. Include observations where available.
+      value: |
+        Install:
+        Manual launch:
+        Remote navigation and Back:
+        Launch installed apps:
+        HDMI switching with a connected device:
+        Live weather:
+    validations:
+      required: true
+  - type: textarea
+    id: errors
+    attributes:
+      label: Reproduction steps and exact errors
+      description: For failures, include the steps, stage, SDK version, and exact sanitized error. Keep passwords, signing files, DUIDs, and local IP addresses private.

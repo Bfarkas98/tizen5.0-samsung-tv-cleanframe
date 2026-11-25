@@ -4,14 +4,36 @@ This adaptation of [Nathan Clark's CleanFrame](https://github.com/nthnclrk/Clean
 
 ## 1. Prepare the TV and PC
 
-- Check your model and firmware in the TV's About or Support screen. The reference TV is a UE43RU7102KXXH running Tizen 5.0 with firmware T-MSLDEUC-1500.9. See the [device test record](../../docs/CLEANFRAME-TV.md).
+- Check your model and firmware in the TV's About or Support screen. The reference TV is a UE43RU7102KXXH running Tizen 5.0 with firmware T-MSLDEUC-1500.9. See the [compatibility table](../../docs/COMPATIBILITY.md).
 - Install Git, Python 3, and the Samsung TV development tools for VS Code, including Device Manager and Certificate Manager. Keep the TV and PC on the same local network. [Samsung VS Code SDK guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode-extension-new.html)
 - On the TV, open **Apps**, enter **12345** using the remote or its virtual keypad, enable **Developer Mode**, and enter the PC's local IPv4 address. Restart the TV and connect to its current address in **Device Manager**. Confirm that the model shown in Device Manager is the one you intend to use. [Samsung device connection guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/connecting-to-tv-device.html)
 - Create a Samsung TV certificate profile. Include this TV's DUID in its distributor certificate and complete Samsung sign-in in Certificate Manager. Authorize the TV for app installation if Device Manager requires it. The launcher uses public privileges. Keep your author key for future updates and store all signing material outside the repository. [Samsung certificate guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/creating-certificates.html)
 
-## 2. Build the unsigned widget
+## 2. Prepare the unsigned widget
 
 Clone or download this repository. In VS Code, create a Samsung TV **web** project in a separate local folder. Its `config.xml` provides the generated package and application IDs. If updating an existing install, use its original manifest and author key to retain that identity.
+
+### Use the prebuilt release
+
+Download `CleanFrame-0.7.7-unsigned.wgt` and `SHA256SUMS.txt` from the [v0.7.7 release](https://github.com/Bfarkas98/tizen5.0-samsung-tv-cleanframe/releases/tag/v0.7.7). The download uses a public build identity. Set your own identity before signing.
+
+From this repository's root, adapt the two example paths and run:
+
+```powershell
+$repo = (Get-Location).Path
+$identity = 'C:\path\to\your\SDK-web-project\config.xml'
+$download = 'C:\path\to\your\downloads'
+$widget = Join-Path $download 'CleanFrame-0.7.7-unsigned.wgt'
+$checksum = Join-Path $download 'SHA256SUMS.txt'
+
+$expected = ((Get-Content -LiteralPath $checksum -Raw).Trim() -split '\s+')[0]
+if ((Get-FileHash -LiteralPath $widget -Algorithm SHA256).Hash -ne $expected) {
+    throw 'The downloaded widget does not match its published checksum.'
+}
+python -B samsung/cleanframe/build-cleanframe-local.py --from-release $widget $identity
+```
+
+### Build from source
 
 Open PowerShell at this repository's root, then run the following. Replace the example SDK manifest path.
 

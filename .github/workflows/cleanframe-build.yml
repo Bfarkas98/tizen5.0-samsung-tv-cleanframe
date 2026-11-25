@@ -1,0 +1,78 @@
+name: CleanFrame build
+
+on:
+  push:
+    branches: [main]
+    tags: [v0.7.7]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out adaptation
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Check out pinned upstream
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: nthnclrk/CleanFrame
+          ref: 845f332d083502fab39be49869052966103b564a
+          path: upstream
+          persist-credentials: false
+
+      - name: Apply patch and export public fonts
+        run: |
+          git -C upstream apply --check "$PWD/samsung/cleanframe/cleanframe-0.7.7.patch"
+          git -C upstream apply "$PWD/samsung/cleanframe/cleanframe-0.7.7.patch"
+          cd upstream
+          python3 -B scripts/export-public.py
+
+      - name: Verify widget and checksum
+        run: |
+          python3 -B tests/check_cleanframe_widget.py upstream/dist/CleanFrame-public-unsigned.wgt dist/release
+          cd dist/release
+          sha256sum --check SHA256SUMS.txt
+
+      - name: Store unsigned widget
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cleanframe-unsigned
+          path: dist/release/
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/tags/v0.7.7'
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download the verified build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cleanframe-unsigned
+          path: release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd release
+          sha256sum --check SHA256SUMS.txt
+          gh release create v0.7.7 --verify-tag --title 'CleanFrame 0.7.7 for Samsung Tizen 5.0' --notes-file - \
+            CleanFrame-0.7.7-unsigned.wgt SHA256SUMS.txt <<'NOTES'
+          An independent adaptation of [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) with a 24-hour clock, a three-day weather forecast, and HDMI controls.
+
+          Download the unsigned widget and its SHA-256 checksum. Use the [installation guide](https://github.com/Bfarkas98/tizen5.0-samsung-tv-cleanframe/tree/v0.7.7/samsung/cleanframe) to apply your own app identity, sign locally with Samsung's SDK, and install. The release contains public fonts and no signing keys.
+
+          See the [compatibility table](https://github.com/Bfarkas98/tizen5.0-samsung-tv-cleanframe/blob/v0.7.7/docs/COMPATIBILITY.md) for the reference TV and feature test status.
+          NOTES
