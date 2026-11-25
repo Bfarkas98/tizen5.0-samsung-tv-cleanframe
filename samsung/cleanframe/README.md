@@ -1,6 +1,6 @@
 # Install CleanFrame 0.7.7 on a Samsung TV
 
-This adaptation of [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) installs as a Tizen web app. Start with the launcher by itself. The separate startup helper is optional.
+This adaptation of [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) installs as a Tizen web app.
 
 ## 1. Prepare the TV and PC
 
@@ -32,7 +32,7 @@ try { python -B scripts/export-public.py } finally { Pop-Location }
 python -B samsung/cleanframe/build-cleanframe-local.py (Join-Path $upstream 'dist/CleanFrame-public-unsigned.wgt') $identity
 ```
 
-Use a fresh checkout if the target folder already contains another version or local edits. Stop on errors before continuing. The export uses public fonts. The final script prints the local application and package IDs and writes both unsigned widgets into the repository's ignored `dist/` directory.
+Use a fresh checkout if the target folder already contains another version or local edits. Stop on errors before continuing. The export uses public fonts. The final script prints the local application and package IDs and writes the unsigned launcher widget into the repository's ignored `dist/` directory.
 
 ## 3. Sign, install, and test the launcher
 
@@ -56,14 +56,7 @@ Check that signing and install succeeded, then open **CleanFrame** from the TV's
 
 If the SDK reports an install or signature failure, save the exact error, then verify the selected TV, distributor DUID, device authorization, and signing profile before rebuilding. Keep credentials, DUIDs, local IPs, and signed widgets out of bug reports. If needed, remove the launcher through **Samsung Apps → Settings**. [Samsung install troubleshooting](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/connecting-to-tv-device.html)
 
-## 4. Optional TV-local startup
-
-The optional `dist/CleanFrame-startup-unsigned.wgt` is a separate Tizen Web Service that targets the launcher app ID printed by the build. It requires a suitable **Partner** Samsung TV distributor profile and firmware support. If your SDK account cannot create or authorize that profile, stick with manual launch.
-
-After manual launch works, sign the helper with the same `tz pack` command using the helper's input and output filenames and your authorized Partner profile. Install it separately with `tz install`. Turn the TV off and back on with the remote and time when CleanFrame becomes visible. Test standby wake and cold boot separately. The helper runs on the TV and needs no PC watcher. Startup timing can vary. Remove **CleanFrame Startup** in **Samsung Apps → Settings** to turn off this behavior while keeping the launcher.
-
 ## Credits
 
 - [Original CleanFrame project and source](https://github.com/nthnclrk/CleanFrame)
 - [CleanFrame MIT license](LICENSE) and [third-party asset notices](THIRD_PARTY_NOTICES.md)
-- [Free My TV](https://github.com/simbasjungles/free-my-tv), the basis for the optional startup service

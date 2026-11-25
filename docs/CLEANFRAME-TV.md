@@ -2,15 +2,9 @@
 
 CleanFrame 0.7.7 was installed and launched on November 25, 2026 on Tizen 5.0, firmware T-MSLDEUC-1500.9. The owner approved the final layout. See the [rebuild guide](../samsung/cleanframe/README.md) for the pinned upstream commit, source patch, build and signing steps.
 
-CleanFrame Startup is a separate Partner-signed Tizen Web Service that requests the foreground launch on boot or wake. It runs on the TV. The helper passed mocked boot, deduplication and standby/wake checks. Samsung confirmed installation and later reinstallation of the helper. Startup timing and first-screen placement were not verified on the final build. To disable automation, remove **CleanFrame Startup** from **Samsung Apps → Settings**.
-
-Free My TV and its old timing helper initially resisted developer uninstall commands with a `closed` response. A later package listing confirmed both were absent after the owner removed the old apps.
-
 ## Update history
 
 Local CleanFrame 0.7.1 changes the launcher clock to 24-hour `HH:mm` in both layouts. The upstream widget has no clock-format setting. Midnight, morning, noon, evening and end-of-day formatting passed locally. Samsung reported the in-place update and a manual launch successful. The actual TV display was not observed.
-
-After the owner cleared old apps, a fresh TV package listing showed CleanFrame still installed, both Free My TV packages absent, and CleanFrame Startup absent as well. Reinstalled only the previously signed CleanFrame Startup widget. Samsung confirmed installation and the final listing showed both CleanFrame packages with both old apps still absent. A physical wake test after reinstall remains pending.
 
 Local CleanFrame 0.7.2 adds a Home HDMI control in Dock and List, reusing the Samsung input chooser, active/connected status and TV viewer handoff. Weather shows current Celsius conditions on Home and a three-day forecast. The city is editable in Weather, with Budapest as the default. Requests go directly to Open-Meteo from the TV. The most recent forecast can be shown from the local cache. Art Mode remains under Settings → Samsung. The 24-hour clock remains in the build.
 
