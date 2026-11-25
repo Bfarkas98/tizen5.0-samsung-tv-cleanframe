@@ -1,23 +1,69 @@
-# Build the local CleanFrame adaptation
+# Install CleanFrame 0.7.7 on a Samsung TV
 
-Use CleanFrame commit [845f332d083502fab39be49869052966103b564a](https://github.com/nthnclrk/CleanFrame/tree/845f332d083502fab39be49869052966103b564a). The archived 0.7.7 patch adds the HDMI manager and shortcuts, three-day weather, and the final Dock layout. The build script sets the local package identity and 24-hour clock. Its separately signed startup app opens CleanFrame from a Tizen Web Service. No native Home integration is part of the build.
+This adaptation of [Nathan Clark's CleanFrame](https://github.com/nthnclrk/CleanFrame) installs as a Tizen web app. Start with the launcher by itself. The separate startup helper is optional.
 
-1. In a clean checkout of the pinned upstream commit, apply this archive's `samsung/cleanframe/cleanframe-0.7.7.patch`. Replace the example path with the absolute path to your archive checkout.
+## 1. Prepare the TV and PC
 
-   ```text
-   git apply --check <archive-path>/samsung/cleanframe/cleanframe-0.7.7.patch
-   git apply <archive-path>/samsung/cleanframe/cleanframe-0.7.7.patch
-   python -B scripts/export-public.py
-   ```
+- Check your model and firmware in the TV's About or Support screen. The reference TV is a UE43RU7102KXXH running Tizen 5.0 with firmware T-MSLDEUC-1500.9. See the [device test record](../../docs/CLEANFRAME-TV.md).
+- Install Git, Python 3, and the Samsung TV development tools for VS Code, including Device Manager and Certificate Manager. Keep the TV and PC on the same local network. [Samsung VS Code SDK guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode-extension-new.html)
+- On the TV, open **Apps**, enter **12345** using the remote or its virtual keypad, enable **Developer Mode**, and enter the PC's local IPv4 address. Restart the TV and connect to its current address in **Device Manager**. Confirm that the model shown in Device Manager is the one you intend to use. [Samsung device connection guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/connecting-to-tv-device.html)
+- Create a Samsung TV certificate profile. Include this TV's DUID in its distributor certificate and complete Samsung sign-in in Certificate Manager. Authorize the TV for app installation if Device Manager requires it. The launcher uses public privileges. Keep your author key for future updates and store all signing material outside the repository. [Samsung certificate guide](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/creating-certificates.html)
 
-   The export writes `dist/CleanFrame-public-unsigned.wgt`.
-2. Generate a TV web project in Samsung's SDK. Keep its `config.xml` to reuse the same app ID for future builds.
-3. From this archive's root, run:
+## 2. Build the unsigned widget
 
-   ```text
-   python -B samsung/cleanframe/build-cleanframe-local.py <upstream-public-unsigned.wgt> <sdk-project-config.xml>
-   ```
+Clone or download this repository. In VS Code, create a Samsung TV **web** project in a separate local folder. Its `config.xml` provides the generated package and application IDs. If updating an existing install, use its original manifest and author key to retain that identity.
 
-4. The script writes both unsigned WGT files into `dist/`. Sign them separately with Samsung's SDK using your local device-bound profile. The on-boot service uses a Partner distributor certificate. Install the CleanFrame widget first, then CleanFrame Startup, using the SDK. The TV needs no PC connection at runtime.
+Open PowerShell at this repository's root, then run the following. Replace the example SDK manifest path.
 
-See the [TV verification record](../../docs/CLEANFRAME-TV.md) for the exact scope of device checks. The upstream launcher and bundled assets are governed by the upstream [MIT license](LICENSE) and [third-party notices](THIRD_PARTY_NOTICES.md). The startup service was adapted from the MIT-licensed Free My TV implementation, with its notice bundled in the helper.
+```powershell
+$repo = (Get-Location).Path
+$upstream = Join-Path (Split-Path $repo -Parent) 'CleanFrame-upstream-0.7.7'
+$identity = 'C:\path\to\your\SDK-web-project\config.xml'
+$patch = Join-Path $repo 'samsung/cleanframe/cleanframe-0.7.7.patch'
+
+git clone --config core.autocrlf=false https://github.com/nthnclrk/CleanFrame.git $upstream
+git -C $upstream checkout --detach 845f332d083502fab39be49869052966103b564a
+git -C $upstream apply --check $patch
+git -C $upstream apply $patch
+
+Push-Location $upstream
+try { python -B scripts/export-public.py } finally { Pop-Location }
+
+python -B samsung/cleanframe/build-cleanframe-local.py (Join-Path $upstream 'dist/CleanFrame-public-unsigned.wgt') $identity
+```
+
+Use a fresh checkout if the target folder already contains another version or local edits. Stop on errors before continuing. The export uses public fonts. The final script prints the local application and package IDs and writes both unsigned widgets into the repository's ignored `dist/` directory.
+
+## 3. Sign, install, and test the launcher
+
+Use the SDK's `tz` and `sdb` tools. Replace the example executable paths, profile XML path, and profile name with the values from your own SDK setup. Use the exact serial listed by `sdb devices` for the TV you connected in Device Manager.
+
+```powershell
+$tz = 'C:\path\to\sdk\tz.exe'
+$sdb = 'C:\path\to\sdk\sdb.exe'
+$profiles = 'C:\path\to\your\profiles.xml'
+$profile = 'My Samsung TV profile'
+$unsigned = Join-Path $repo 'dist/CleanFrame-local-unsigned.wgt'
+$signed = Join-Path $repo 'dist/CleanFrame-local.wgt'
+
+& $tz pack --type wgt --base-pkg $unsigned --out-path $signed --profiles-path $profiles --sign-profile $profile
+& $sdb devices
+$serial = '<TV serial listed by sdb devices>'
+& $tz install --serial $serial --package-path $signed
+```
+
+Check that signing and install succeeded, then open **CleanFrame** from the TV's **Apps** screen. Test arrow keys, OK, Back/Return, app launches, live weather, and a connected HDMI input. Weather uses an editable city and sends forecast and city-search requests to Open-Meteo. The app can show its cached forecast when offline.
+
+If the SDK reports an install or signature failure, save the exact error, then verify the selected TV, distributor DUID, device authorization, and signing profile before rebuilding. Keep credentials, DUIDs, local IPs, and signed widgets out of bug reports. If needed, remove the launcher through **Samsung Apps → Settings**. [Samsung install troubleshooting](https://developer.samsung.com/smarttv/develop/tools/additional-tools/vscode/connecting-to-tv-device.html)
+
+## 4. Optional TV-local startup
+
+The optional `dist/CleanFrame-startup-unsigned.wgt` is a separate Tizen Web Service that targets the launcher app ID printed by the build. It requires a suitable **Partner** Samsung TV distributor profile and firmware support. If your SDK account cannot create or authorize that profile, stick with manual launch.
+
+After manual launch works, sign the helper with the same `tz pack` command using the helper's input and output filenames and your authorized Partner profile. Install it separately with `tz install`. Turn the TV off and back on with the remote and time when CleanFrame becomes visible. Test standby wake and cold boot separately. The helper runs on the TV and needs no PC watcher. Startup timing can vary. Remove **CleanFrame Startup** in **Samsung Apps → Settings** to turn off this behavior while keeping the launcher.
+
+## Credits
+
+- [Original CleanFrame project and source](https://github.com/nthnclrk/CleanFrame)
+- [CleanFrame MIT license](LICENSE) and [third-party asset notices](THIRD_PARTY_NOTICES.md)
+- [Free My TV](https://github.com/simbasjungles/free-my-tv), the basis for the optional startup service
